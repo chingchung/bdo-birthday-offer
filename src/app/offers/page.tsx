@@ -11,7 +11,6 @@ export const metadata: Metadata = {
   description: "瀏覽全港所有生日優惠，包括免費蛋糕、門票、餐廳折扣等，按分類、地區篩選。",
 };
 
-export const dynamic = "force-dynamic";
 
 interface PageProps {
   searchParams: Promise<{

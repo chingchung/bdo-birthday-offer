@@ -1,5 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { MOCK_OFFERS } from "@/lib/mock-data";
+
+// Pre-render all offer pages at build time (required for static export)
+export async function generateStaticParams() {
+  return MOCK_OFFERS.map((o) => ({ id: o.id }));
+}
 import Image from "next/image";
 import Link from "next/link";
 import {
