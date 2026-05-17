@@ -37,7 +37,7 @@ export default function OfferModal({ offer, onClose }: OfferModalProps) {
       {/* Panel */}
       <div className={cn(
         "relative bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl",
-        "shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+        "shadow-2xl overflow-hidden max-h-[80vh] sm:max-h-[90vh] flex flex-col"
       )}>
 
         {/* Header strip — brand colour replaced with neutral */}

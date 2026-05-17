@@ -1,21 +1,22 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Search, X, Gift } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Search, X, LayoutGrid, UtensilsCrossed, ShoppingBag, Sparkles, Gift } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import type { Offer } from "@/types";
 import OfferCard from "@/components/offers/OfferCard";
 import OfferModal from "@/components/offers/OfferModal";
+import MobileMapView from "@/components/MobileMapView";
 
 const MASCOT_URL =
   "https://framerusercontent.com/images/Fkp29ZULMXxjJhDGpH2LaloSs.png";
 
 const TABS = [
-  { key: "all",      label: "全部" },
-  { key: "dining",   label: "餐飲" },
-  { key: "shopping", label: "購物" },
-  { key: "activity", label: "活動" },
+  { key: "all",      label: "全部",  icon: LayoutGrid },
+  { key: "dining",   label: "餐飲",  icon: UtensilsCrossed },
+  { key: "shopping", label: "購物",  icon: ShoppingBag },
+  { key: "activity", label: "活動",  icon: Sparkles },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -27,11 +28,32 @@ const TAB_SLUGS: Record<TabKey, string[]> = {
   activity: ["attraction", "cinema", "hotel", "spa", "other"],
 };
 
+function formatDate() {
+  const now = new Date();
+  const dayNames = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
+  return `${dayNames[now.getDay()]}，${now.getMonth() + 1}月${now.getDate()}日`;
+}
+
 export default function MainClient({ offers }: { offers: Offer[] }) {
-  const [tab, setTab]           = useState<TabKey>("all");
+  const [tab, setTab]               = useState<TabKey>("all");
   const [birthMonth, setBirthMonth] = useState(false);
-  const [search, setSearch]     = useState("");
-  const [selected, setSelected] = useState<Offer | null>(null);
+  const [search, setSearch]         = useState("");
+  const [selected, setSelected]     = useState<Offer | null>(null);
+  const [searchActive, setSearchActive] = useState(false);
+  const [dateVisible, setDateVisible]   = useState(true);
+  const [isMobile, setIsMobile]         = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setDateVisible(window.scrollY < 40);
+    const checkMobile  = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", checkMobile);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", checkMobile);
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     return offers.filter((o) => {
@@ -52,41 +74,123 @@ export default function MainClient({ offers }: { offers: Offer[] }) {
   const hasFilter = tab !== "all" || birthMonth || !!search;
 
   return (
-    <div className="min-h-screen bg-[#F0EDE8]">
+    <div className="min-h-screen bg-[#F0EDE8] md:bg-[#F0EDE8]">
 
-      {/* ══ TOP BAR ══════════════════════════════════════════ */}
-      <header className="px-4 md:px-6 pt-5 pb-4">
-        <div className="max-w-6xl mx-auto flex items-center gap-3">
-          <h1 className="text-xl font-black text-[#1A1714] tracking-tight">Birthday Offer</h1>
-          <div className="flex-1" />
-          {/* Search */}
-          <div className="relative w-44 sm:w-60">
-            <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#BBB]" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="搜尋…"
-              className="w-full pl-8 pr-8 py-2 rounded-full bg-white border border-[#E0DCD6]
-                         text-sm text-[#333] placeholder:text-[#CCC]
-                         focus:outline-none focus:border-[#999] transition-colors"
+      {/* ══════════════════════════════════════════════════════
+          MOBILE — Map + bottom sheet (Luma-style)
+      ══════════════════════════════════════════════════════ */}
+
+      {/* Floating mobile header — overlays map, covered when sheet expands */}
+      <header className="md:hidden fixed top-0 left-0 right-0 z-10
+                         bg-gradient-to-b from-white/85 to-white/0 backdrop-blur-[2px]
+                         pointer-events-none">
+        <div className="pointer-events-auto px-4 pt-3 pb-4">
+          <div className="text-[13px] font-bold text-[#1A1714] tracking-tight mb-1">
+            {formatDate()}
+          </div>
+          <div className="flex items-center gap-2">
+            <Image
+              src={MASCOT_URL}
+              alt="BDO"
+              width={28}
+              height={28}
+              className="drop-shadow-sm"
+              priority
             />
-            {search && (
-              <button onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#BBB] hover:text-[#555]">
-                <X size={13} />
-              </button>
-            )}
+            <span className="text-[15px] font-black text-[#1A1714] tracking-tight leading-none">
+              生日著數
+            </span>
+            <div className="flex-1" />
+            <button
+              onClick={() => setBirthMonth((v) => !v)}
+              className={cn(
+                "flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all shadow-sm",
+                birthMonth
+                  ? "bg-[#1A1714] text-white border-[#1A1714]"
+                  : "bg-white/95 text-[#666] border-white"
+              )}
+            >
+              <Gift size={12} />
+              生日月份
+            </button>
+          </div>
+
+          {/* Mobile search bar */}
+          <div className={cn(
+            "overflow-hidden transition-all duration-200 ease-in-out",
+            searchActive ? "max-h-16 opacity-100 mt-2" : "max-h-0 opacity-0"
+          )}>
+            <div className="relative">
+              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#BBB]" />
+              <input
+                autoFocus={searchActive}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="搜尋優惠或品牌…"
+                className="w-full pl-9 pr-9 py-2.5 rounded-full bg-white border border-[#E0DCD6]
+                           text-sm text-[#333] placeholder:text-[#CCC] shadow-sm
+                           focus:outline-none focus:border-[#999]"
+              />
+              {search && (
+                <button onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#BBB]">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
-      {/* ══ BODY ═════════════════════════════════════════════ */}
-      {/* Extra bottom padding on mobile for sticky filter bar */}
-      <div className="max-w-6xl mx-auto px-4 md:px-6 pb-28 md:pb-16 flex gap-6 items-start">
+      {isMobile && <MobileMapView offers={filtered} onSelect={setSelected} />}
 
-        {/* ── LEFT SIDEBAR — desktop only ───────────────────── */}
-        <aside className="hidden md:block w-40 flex-shrink-0 sticky top-6">
-          {/* Mascot sitting on top */}
+      {/* ══════════════════════════════════════════════════════
+          DESKTOP — original list layout
+      ══════════════════════════════════════════════════════ */}
+
+      <header className="hidden md:block sticky top-0 z-30 bg-[#F0EDE8]">
+        <div className={cn(
+          "overflow-hidden transition-all duration-300 ease-in-out",
+          dateVisible ? "max-h-12 opacity-100" : "max-h-0 opacity-0"
+        )}>
+          <div className="px-4 pt-3 pb-0.5">
+            <span className="text-[15px] font-bold text-[#1A1714] tracking-tight">
+              {formatDate()}
+            </span>
+          </div>
+        </div>
+
+        <div className="px-4 md:px-6 py-2.5">
+          <div className="max-w-6xl mx-auto flex items-center gap-3">
+            <span className="text-xl font-black text-[#1A1714] tracking-tight leading-none">
+              Birthday Offer
+            </span>
+
+            <div className="flex-1" />
+
+            <div className="relative w-60">
+              <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#BBB]" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="搜尋…"
+                className="w-full pl-8 pr-8 py-2 rounded-full bg-white border border-[#E0DCD6]
+                           text-sm text-[#333] placeholder:text-[#CCC]
+                           focus:outline-none focus:border-[#999] transition-colors"
+              />
+              {search && (
+                <button onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#BBB] hover:text-[#555]">
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="hidden md:flex max-w-6xl mx-auto px-4 md:px-6 pb-16 gap-6 items-start">
+        <aside className="w-40 flex-shrink-0 sticky top-20">
           <div className="flex justify-center -mb-5 relative z-10 pointer-events-none select-none">
             <Image
               src={MASCOT_URL}
@@ -98,7 +202,6 @@ export default function MainClient({ offers }: { offers: Offer[] }) {
             />
           </div>
 
-          {/* Filter card */}
           <div className="bg-[#E6E2DC] rounded-3xl pt-7 pb-3 px-2.5 flex flex-col gap-0.5">
             {TABS.map((t) => (
               <button
@@ -140,7 +243,6 @@ export default function MainClient({ offers }: { offers: Offer[] }) {
           </div>
         </aside>
 
-        {/* ── Offer grid ────────────────────────────────────── */}
         <div className="flex-1 min-w-0 pt-2">
           <p className="text-xs text-[#AAA] mb-4">
             <span className="font-bold text-[#333] text-sm">{filtered.length}</span> 個優惠
@@ -152,7 +254,16 @@ export default function MainClient({ offers }: { offers: Offer[] }) {
           </p>
 
           {filtered.length === 0 ? (
-            <EmptyState onClear={() => { setTab("all"); setBirthMonth(false); setSearch(""); }} />
+            <div className="flex flex-col items-center gap-4 py-24 text-center">
+              <Image src={MASCOT_URL} alt="" width={72} height={72} className="opacity-30 grayscale" />
+              <p className="text-sm font-bold text-[#888]">找不到相關優惠</p>
+              <button
+                onClick={() => { setTab("all"); setBirthMonth(false); setSearch(""); }}
+                className="text-xs px-4 py-2 rounded-full border border-[#CCC] text-[#666] hover:border-[#999]"
+              >
+                顯示全部
+              </button>
+            </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {filtered.map((offer) => (
@@ -163,82 +274,72 @@ export default function MainClient({ offers }: { offers: Offer[] }) {
         </div>
       </div>
 
-      <footer className="text-center pb-8 text-[11px] text-[#BBB]">
+      <footer className="hidden md:block text-center pb-8 text-[11px] text-[#BBB]">
         © {new Date().getFullYear()} Birthday Offer HK · 所有優惠以商戶官方公布為準
       </footer>
 
-      {/* ══ MOBILE STICKY BOTTOM FILTER ══════════════════════ */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40
-                      bg-[#E6E2DC]/95 backdrop-blur-md
-                      border-t border-[#D4D0CA]
-                      px-4 pt-3 pb-safe">
-
-        {/* Mascot peek — sits on top edge of bar */}
-        <div className="absolute -top-10 left-4 pointer-events-none select-none">
-          <Image
-            src={MASCOT_URL}
-            alt=""
-            width={44}
-            height={44}
-            className="drop-shadow-md"
-          />
-        </div>
-
-        <div className="flex items-center gap-2 pb-3">
-          {/* Category pills */}
-          <div className="flex gap-1.5 flex-1 overflow-x-auto no-scrollbar">
-            {TABS.map((t) => (
+      {/* ══ MOBILE BOTTOM NAV ════════════════════════════════ */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30
+                      bg-white/95 backdrop-blur-md border-t border-[#E8E4DF] pb-safe
+                      shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
+        <div className="flex items-stretch justify-around px-1 pt-2 pb-2">
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            const isActive = tab === t.key && !searchActive;
+            return (
               <button
                 key={t.key}
-                onClick={() => setTab(t.key)}
-                className={cn(
-                  "flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-all",
-                  tab === t.key
-                    ? "bg-[#1A1714] text-white"
-                    : "bg-white text-[#888] border border-[#D8D4CE]"
-                )}
+                onClick={() => { setTab(t.key); setSearchActive(false); }}
+                className="flex flex-col items-center gap-0.5 flex-1 min-w-0"
               >
-                {t.label}
+                <div className={cn(
+                  "px-5 py-1 rounded-full transition-all duration-200",
+                  isActive ? "bg-[#EDE9E3]" : ""
+                )}>
+                  <Icon
+                    size={22}
+                    className={cn("transition-colors", isActive ? "text-[#1A1714]" : "text-[#B0AAA4]")}
+                    strokeWidth={isActive ? 2.2 : 1.8}
+                  />
+                </div>
+                <span className={cn(
+                  "text-[10px] font-semibold transition-colors leading-tight",
+                  isActive ? "text-[#1A1714]" : "text-[#B0AAA4]"
+                )}>
+                  {t.label}
+                </span>
               </button>
-            ))}
-          </div>
+            );
+          })}
 
-          {/* Birth month toggle pill */}
           <button
-            onClick={() => setBirthMonth(!birthMonth)}
-            className={cn(
-              "flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full",
-              "text-sm font-semibold transition-all border",
-              birthMonth
-                ? "bg-[#1A1714] text-white border-[#1A1714]"
-                : "bg-white text-[#888] border-[#D8D4CE]"
-            )}
+            onClick={() => setSearchActive((v) => !v)}
+            className="flex flex-col items-center gap-0.5 flex-1 min-w-0"
           >
-            <Gift size={13} />
-            月份
+            <div className={cn(
+              "px-5 py-1 rounded-full transition-all duration-200",
+              searchActive ? "bg-[#EDE9E3]" : ""
+            )}>
+              <Search
+                size={22}
+                className={cn("transition-colors", searchActive ? "text-[#1A1714]" : "text-[#B0AAA4]")}
+                strokeWidth={searchActive ? 2.2 : 1.8}
+              />
+            </div>
+            <span className={cn(
+              "text-[10px] font-semibold transition-colors leading-tight",
+              searchActive ? "text-[#1A1714]" : "text-[#B0AAA4]"
+            )}>
+              搜尋
+            </span>
           </button>
         </div>
-      </div>
+      </nav>
 
       {/* ══ MODAL ════════════════════════════════════════════ */}
       {selected && (
         <OfferModal offer={selected} onClose={() => setSelected(null)} />
       )}
-    </div>
-  );
-}
-
-function EmptyState({ onClear }: { onClear: () => void }) {
-  return (
-    <div className="flex flex-col items-center gap-4 py-24 text-center">
-      <Image src={MASCOT_URL} alt="" width={72} height={72} className="opacity-30 grayscale" />
-      <p className="text-sm font-bold text-[#888]">找不到相關優惠</p>
-      <button
-        onClick={onClear}
-        className="text-xs px-4 py-2 rounded-full border border-[#CCC] text-[#666] hover:border-[#999]"
-      >
-        顯示全部
-      </button>
     </div>
   );
 }
